@@ -1,0 +1,31 @@
+#!/usr/bin/env ruby
+require 'em-proxy'
+
+TARGET = ARGV[0] ? ARGV[0].to_sym : :mysql
+
+puts "Starting proxy on port 4000."
+puts "Passing requests port 4001 (mysql) and port 4100 (postgres). Responses are returned from #{TARGET}."
+Proxy.start(:host => "0.0.0.0", :port => 4000, :debug => true) do |conn|
+  @start = Time.now
+  @data = Hash.new("")
+
+  conn.server :mysql, :host => "127.0.0.1", :port => 4001
+  conn.server :postgres, :host => "127.0.0.1", :port => 4100
+
+  conn.on_data do |data|
+    data
+  end
+  
+  conn.on_response do |server, resp|
+    # only render response from production
+    @data[server] += resp
+    p "Response delivered from #{TARGET}"
+    resp if server == TARGET 
+  end
+
+  conn.on_finish do |name|
+    p [:on_finish, name, Time.now - @start]
+    p @data
+    :close if name == TARGET
+  end
+end
